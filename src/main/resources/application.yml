@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: transactional-outbox
+  datasource:
+    url: jdbc:postgresql://localhost:5432/catalog
+    username: catalog
+    password: catalog
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        # Every replica must acknowledge. A message the broker loses after accepting it
+        # defeats the whole exercise: the outbox row would already be marked published.
+        acks: all
+        # The publisher waits for the send, so these decide how long a batch blocks when
+        # the broker is unreachable. Left at the defaults, one outage stalls the publisher
+        # for minutes at a time.
+        max.block.ms: 3000
+        request.timeout.ms: 3000
+        delivery.timeout.ms: 5000
+        retries: 2
+    consumer:
+      group-id: catalog-projection
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+    listener:
+      ack-mode: record
+
+app:
+  outbox:
+    topic: catalog-events
+    batch-size: 100
+    max-attempts: 5
+    initial-backoff: PT2S
+    retention: P7D
+    poll-interval: PT1S
+    purge-interval: PT1H
+    publisher-enabled: true
+
+logging:
+  level:
+    com.gkcontas.outbox: INFO
+
+server:
+  error:
+    include-message: always
